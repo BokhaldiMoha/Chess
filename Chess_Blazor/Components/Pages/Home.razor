@@ -1,0 +1,74 @@
+﻿@page "/"
+@using Chess_Logic;
+
+<PageTitle>Home</PageTitle>
+
+<div class="board">
+    @for (int row = 0; row < 8; row++)
+    {
+        for (int col = 0; col < 8; col++)
+        {
+            int rowIndex = row;
+            int colIndex = col;
+
+            <div class="cell" style="background-color: @game.GetCellColor(rowIndex, colIndex);"
+                 ondragover="event.preventDefault()"
+                 @ondrop="(args) => OnPieceDrop(args, rowIndex, colIndex)">
+                @if (game.IsCellOccuped(rowIndex, colIndex))
+                {
+                    @if (game.Turn == game.GetPieceColor(rowIndex, colIndex))
+                    {
+                        <img draggable="true" class="piece" src="~/../pieces/@game.GetPieceImg(rowIndex, colIndex)"
+                             @key="@($"piece{rowIndex}{colIndex}")"
+                             @ondragstart="(args) => OnPieceDragStart(args, rowIndex, colIndex)"
+                        @ondragover:preventDefault />
+                    }
+                    else
+                    {
+                        <img class="piece" src="~/../pieces/@game.GetPieceImg(rowIndex, colIndex)" />
+                    }
+                }
+            </div>
+        }
+    }
+</div>
+
+<style>
+
+    .board {
+        display: flex;
+        flex-wrap: wrap;
+        height: 100vh;
+        width: 100vh;
+    }
+
+    .cell {
+        width: calc(100vh / 8);
+        height: calc(100vh / 8);
+    }
+
+    .piece {
+        height: 100%;
+        width: 100%;
+    }
+
+</style>
+
+@code {
+
+    private Game game = new Game();
+
+    private int pieceRowDragging = 0;
+    private int pieceColDragging = 0;
+
+    private void OnPieceDrop(DragEventArgs args, int row, int col)
+    {
+        game.MovePiece(pieceRowDragging, pieceColDragging, row, col);
+    }
+
+    private void OnPieceDragStart(DragEventArgs args, int row, int col)
+    {
+        pieceRowDragging = row;
+        pieceColDragging = col;
+    }
+}
