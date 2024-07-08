@@ -13,6 +13,19 @@
             SetUpPieces(7, PieceColor.Black);
         }
 
+        internal static bool IsValidPosition(int row, int col)
+        {
+            return row >= 0 && row < 8 && col >= 0 && col < 8;
+        }
+
+        public List<(int, int)> GetLegalMoves(int row, int col)
+        {
+            if (!IsCellOccuped(row, col))
+                throw new ArgumentException("No piece on the specified position.");
+
+            return Board[row, col]!.GetLegalMoves(Board, row, col);
+        }
+
         public void ChangeTurn()
         {
             if (Turn == PieceColor.White)
@@ -23,6 +36,9 @@
 
         public bool IsCellOccuped(int row, int col)
         {
+            if (!IsValidPosition(row, col))
+                return false;
+
             return Board[row, col] != null;
         }
 
@@ -31,15 +47,16 @@
             if (!IsCellOccuped(oldRow, oldCol))
                 throw new ArgumentException("No piece on the specified position.");
 
-            Board[NewRow, newCol] = Board[oldRow, oldCol];
+            Piece piece = Board[oldRow, oldCol]!;
             Board[oldRow, oldCol] = null;
+            Board[NewRow, newCol] = piece;
         }
 
         public PieceColor GetPieceColor(int row, int col)
         {
             if (!IsCellOccuped(row, col))
                 throw new ArgumentException("No piece on the specified position.");
-            
+
             return Board[row, col]!.PieceColor;
         }
 

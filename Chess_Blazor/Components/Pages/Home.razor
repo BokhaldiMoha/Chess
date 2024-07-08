@@ -10,23 +10,31 @@
         {
             int rowIndex = row;
             int colIndex = col;
+            string cellColor = legalMoves.Contains((rowIndex, colIndex)) ? "aliceblue" : game.GetCellColor(rowIndex, colIndex);
 
-            <div class="cell" style="background-color: @game.GetCellColor(rowIndex, colIndex);"
+            <div class="cell" style="background-color: @cellColor;"
                  ondragover="event.preventDefault()"
                  @ondrop="(args) => OnPieceDrop(args, rowIndex, colIndex)">
                 @if (game.IsCellOccuped(rowIndex, colIndex))
                 {
-                    @if (game.Turn == game.GetPieceColor(rowIndex, colIndex))
+                    var pieceColor = game.GetPieceColor(rowIndex, colIndex);
+                    var pieceImg = game.GetPieceImg(rowIndex, colIndex);
+
+                    @if (game.Turn == pieceColor)
                     {
-                        <img draggable="true" class="piece" src="~/../pieces/@game.GetPieceImg(rowIndex, colIndex)"
+                        <img draggable="true" class="piece draggable-piece" src="~/../pieces/@pieceImg"
                              @key="@($"piece{rowIndex}{colIndex}")"
                              @ondragstart="(args) => OnPieceDragStart(args, rowIndex, colIndex)"
                         @ondragover:preventDefault />
                     }
                     else
                     {
-                        <img class="piece" src="~/../pieces/@game.GetPieceImg(rowIndex, colIndex)" />
+                        <img ondragstart="event.preventDefault()" class="piece" src="~/../pieces/@pieceImg" />
                     }
+                }
+                else
+                {
+                    <img draggable="false" ondragstart="event.preventDefault()" class="piece" src="~/../transparent.png" />
                 }
             </div>
         }
@@ -52,23 +60,53 @@
         width: 100%;
     }
 
+    .draggable-piece {
+        cursor: url("https://www.google.com/intl/en_ALL/mapfiles/openhand.cur"), all-scroll;
+        cursor: -webkit-grab;
+        cursor: -moz-grab;
+        cursor: -o-grab;
+        cursor: -ms-grab;
+        cursor: grab;
+    }
+
+        .draggable-piece:active {
+            cursor: url("https://www.google.com/intl/en_ALL/mapfiles/closedhand.cur"), all-scroll;
+            cursor: -webkit-grabbing;
+            cursor: -moz-grabbing;
+            cursor: -o-grabbing;
+            cursor: -ms-grabbing;
+            cursor: grabbing;
+        }
+
 </style>
 
 @code {
 
     private Game game = new Game();
 
-    private int pieceRowDragging = 0;
-    private int pieceColDragging = 0;
+    private int pieceRowDragging = -1;
+    private int pieceColDragging = -1;
+
+    private List<(int, int)> legalMoves = [];
 
     private void OnPieceDrop(DragEventArgs args, int row, int col)
     {
+        Console.WriteLine($"OnPieceDrop -> row: {row} - col: {col}");
+
+        if (pieceRowDragging == row && pieceColDragging == col || !legalMoves.Contains((row, col)))
+            return;
+
         game.MovePiece(pieceRowDragging, pieceColDragging, row, col);
+        game.ChangeTurn();
+        legalMoves.Clear();
     }
 
     private void OnPieceDragStart(DragEventArgs args, int row, int col)
     {
+        Console.WriteLine($"OnPieceDragStart -> row: {row} - col: {col}");
         pieceRowDragging = row;
         pieceColDragging = col;
+
+        legalMoves = game.GetLegalMoves(row, col);
     }
 }
