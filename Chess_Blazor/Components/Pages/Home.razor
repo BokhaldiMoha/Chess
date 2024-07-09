@@ -10,12 +10,13 @@
         {
             int rowIndex = row;
             int colIndex = col;
-            string cellColor = legalMoves.Contains((rowIndex, colIndex)) ? "aliceblue" : game.GetCellColor(rowIndex, colIndex);
+            string cellColor = legalMoves.Contains((rowIndex, colIndex)) ? "red" : game.GetCellColor(rowIndex, colIndex);
 
             <div class="cell" style="background-color: @cellColor;"
                  ondragover="event.preventDefault()"
-                 @ondrop="(args) => OnPieceDrop(args, rowIndex, colIndex)">
-                @if (game.IsCellOccuped(rowIndex, colIndex))
+                 @ondrop="(args) => OnPieceDrop(rowIndex, colIndex)"
+                 @onclick="() => OnPieceDrop(rowIndex, colIndex)">
+                @if (game.IsCellOccupied(rowIndex, colIndex))
                 {
                     var pieceColor = game.GetPieceColor(rowIndex, colIndex);
                     var pieceImg = game.GetPieceImg(rowIndex, colIndex);
@@ -24,7 +25,8 @@
                     {
                         <img draggable="true" class="piece draggable-piece" src="~/../pieces/@pieceImg"
                              @key="@($"piece{rowIndex}{colIndex}")"
-                             @ondragstart="(args) => OnPieceDragStart(args, rowIndex, colIndex)"
+                             @ondragstart="(args) => OnPieceDragStart(rowIndex, colIndex)"
+                             @onclick="() => OnPieceDragStart(rowIndex, colIndex)"
                         @ondragover:preventDefault />
                     }
                     else
@@ -89,7 +91,7 @@
 
     private List<(int, int)> legalMoves = [];
 
-    private void OnPieceDrop(DragEventArgs args, int row, int col)
+    private void OnPieceDrop(int row, int col)
     {
         Console.WriteLine($"OnPieceDrop -> row: {row} - col: {col}");
 
@@ -101,7 +103,7 @@
         legalMoves.Clear();
     }
 
-    private void OnPieceDragStart(DragEventArgs args, int row, int col)
+    private void OnPieceDragStart(int row, int col)
     {
         Console.WriteLine($"OnPieceDragStart -> row: {row} - col: {col}");
         pieceRowDragging = row;

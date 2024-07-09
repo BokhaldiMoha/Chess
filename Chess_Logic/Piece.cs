@@ -6,6 +6,8 @@ namespace Chess_Logic
     {
         internal readonly PieceType PieceType;
         internal readonly PieceColor PieceColor;
+        internal bool CanEnPassantDown = false;
+        internal bool CanEnPassantUp = false;
 
         public Piece(PieceType pieceType, PieceColor pieceColor)
         {
@@ -42,51 +44,121 @@ namespace Chess_Logic
             return img + ".png";
         }
 
-        internal List<(int, int)> GetLegalMoves(Piece?[,] board, int row, int col)
+        internal List<(int, int)> GetLegalMoves(Game game, int row, int col)
         {
-            List<(int row, int col)> moves = new List<(int row, int col)>();
+            List<(int, int)> moves = [];
 
-            var directions = GetDirections();
+            (int rowMove, int colMove)[] directions = GetDirections();
 
             foreach (var direction in directions)
             {
-                int newRow = row + direction.Item1;
-                int newCol = col + direction.Item2;
+                int moveRow = row + direction.rowMove;
+                int moveCol = col + direction.colMove;
 
-                while (Game.IsValidPosition(newRow, newCol) && (board[newRow, newCol] == null || board[newRow, newCol]!.PieceColor != this.PieceColor))
+                if (PieceType is PieceType.Queen or PieceType.Rook or PieceType.Bishop)
                 {
-                    moves.Add((newRow, newCol));
-                    if (board[newRow, newCol] != null && board[newRow, newCol].PieceColor != this.PieceColor)
-                        break;
-                    if (PieceType == PieceType.Knight || PieceType == PieceType.King || PieceType == PieceType.Pawn)
-                        break;
-
-                    newRow += direction.Item1;
-                    newCol += direction.Item2;
-                }
-            }
-
-            // Extra logic for pawns (moving forward and capturing)
-            if (PieceType == PieceType.Pawn)
-            {
-                int direction = this.PieceColor == PieceColor.White ? 1 : -1;
-                int startRow = this.PieceColor == PieceColor.White ? 1 : 6;
-
-                // Forward move
-                if (Game.IsValidPosition(row + direction, col) && board[row + direction, col] == null)
-                {
-                    moves.Add((row + direction, col));
-
-                    // Double move from start
-                    if (row == startRow && board[row + 2 * direction, col] == null)
+                    bool keepSearching = true;
+                    do
                     {
-                        moves.Add((row + 2 * direction, col));
+                        if (CanMoveToCell(game, moveRow, moveCol, out keepSearching))
+                        {
+                            moves.Add((moveRow, moveCol));
+                            moveRow += direction.rowMove;
+                            moveCol += direction.colMove;
+                        }
+                    }
+                    while (keepSearching);
+                }
+                else if (PieceType is PieceType.King or PieceType.Knight)
+                {
+                    if (CanMoveToCell(game, moveRow, moveCol, out _))
+                    {
+                        moves.Add((moveRow, moveCol));
+                    }
+                }
+                else
+                {
+                    bool moveIsStraightLine = direction.colMove == 0;
+                    if (CanPawnMoveToCell(game, moveRow, moveCol, moveIsStraightLine))
+                    {
+                        moves.Add((moveRow, moveCol));
+
+                        moveRow += direction.rowMove;
+                        if (moveIsStraightLine && IsPawnOnStartingPosition(row) && CanPawnMoveToCell(game, moveRow, moveCol, moveIsStraightLine))
+                        {
+                            moves.Add((moveRow, moveCol));
+                        }
+                    }
+                    else if (!moveIsStraightLine)
+                    {
+                        if (int.IsNegative(direction.colMove) && CanEnPassantDown)
+                            moves.Add((moveRow, moveCol));
+                        else if (!int.IsNegative(direction.colMove) && CanEnPassantUp)
+                            moves.Add((moveRow, moveCol));
                     }
                 }
             }
 
             return moves;
         }
+
+        private bool IsPawnOnStartingPosition(int row)
+        {
+            if (PieceType != PieceType.Pawn)
+                throw new ArgumentException("Not a pawn!");
+
+            if (PieceColor == PieceColor.White)
+                return row == 1;
+            else
+                return row == 6;
+        }
+
+        private bool CanMoveToCell(Game game, int row, int col, out bool keepSearching)
+        {
+            if (Game.IsValidPosition(row, col))
+            {
+                if (!game.IsCellOccupied(row, col))
+                {
+                    keepSearching = true;
+                    return true;
+                }
+                else if (game.IsCellOccupiedByEnemy(PieceColor, row, col))
+                {
+                    keepSearching = false;
+                    return true;
+                }
+            }
+
+            keepSearching = false;
+            return false;
+        }
+
+        private bool CanPawnMoveToCell(Game game, int row, int col, bool moveIsStraightLine)
+        {
+            if (Game.IsValidPosition(row, col))
+            {
+                if (moveIsStraightLine)
+                {
+                    return !game.IsCellOccupied(row, col);
+                }
+                else
+                {
+                    return game.IsCellOccupiedByEnemy(PieceColor, row, col);
+                }
+            }
+
+            return false;
+        }
+
+        private static readonly (int, int)[] StraightMoves =
+        [
+            (1, 0), (-1, 0), (0, 1), (0, -1)
+        ];
+
+        private static readonly (int, int)[] DiagonalMoves =
+        [
+             (1, 1), (1, -1), (-1, 1), (-1, -1)
+        ];
 
         private (int, int)[] GetDirections()
         {
@@ -105,25 +177,13 @@ namespace Chess_Logic
                         (2, 1), (2, -1), (-2, 1), (-2, -1), (1, 2), (1, -2), (-1, 2), (-1, -2)
                     ];
                 case PieceType.Bishop:
-                    return
-                    [
-                        (1, 1), (1, -1), (-1, 1), (-1, -1)
-                    ];
+                    return DiagonalMoves;
                 case PieceType.Rook:
-                    return
-                    [
-                        (1, 0), (-1, 0), (0, 1), (0, -1)
-                    ];
+                    return StraightMoves;
                 case PieceType.Queen:
-                    return
-                    [
-                        (1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)
-                    ];
                 case PieceType.King:
-                    return
-                    [
-                        (1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)
-                    ];
+                    return StraightMoves.Concat(DiagonalMoves).ToArray();
+
                 default:
                     throw new ArgumentException();
             };

@@ -1,4 +1,6 @@
-﻿namespace Chess_Logic
+﻿using System.Data;
+
+namespace Chess_Logic
 {
     public class Game
     {
@@ -20,10 +22,10 @@
 
         public List<(int, int)> GetLegalMoves(int row, int col)
         {
-            if (!IsCellOccuped(row, col))
+            if (!IsCellOccupied(row, col))
                 throw new ArgumentException("No piece on the specified position.");
 
-            return Board[row, col]!.GetLegalMoves(Board, row, col);
+            return Board[row, col]!.GetLegalMoves(this, row, col);
         }
 
         public void ChangeTurn()
@@ -34,7 +36,7 @@
                 Turn = PieceColor.White;
         }
 
-        public bool IsCellOccuped(int row, int col)
+        public bool IsCellOccupied(int row, int col)
         {
             if (!IsValidPosition(row, col))
                 return false;
@@ -42,9 +44,14 @@
             return Board[row, col] != null;
         }
 
+        internal bool IsCellOccupiedByEnemy(PieceColor pieceColor, int row, int col)
+        {
+            return IsCellOccupied(row, col) && Board[row, col]!.PieceColor != pieceColor;
+        }
+
         public void MovePiece(int oldRow, int oldCol, int NewRow, int newCol)
         {
-            if (!IsCellOccuped(oldRow, oldCol))
+            if (!IsCellOccupied(oldRow, oldCol))
                 throw new ArgumentException("No piece on the specified position.");
 
             Piece piece = Board[oldRow, oldCol]!;
@@ -54,7 +61,7 @@
 
         public PieceColor GetPieceColor(int row, int col)
         {
-            if (!IsCellOccuped(row, col))
+            if (!IsCellOccupied(row, col))
                 throw new ArgumentException("No piece on the specified position.");
 
             return Board[row, col]!.PieceColor;
@@ -62,7 +69,7 @@
 
         public string GetPieceImg(int row, int col)
         {
-            if (!IsCellOccuped(row, col))
+            if (!IsCellOccupied(row, col))
                 throw new ArgumentException("No piece on the specified position.");
 
             return Board[row, col]!.GetImg();
