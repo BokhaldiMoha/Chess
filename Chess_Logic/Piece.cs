@@ -44,7 +44,7 @@ namespace Chess_Logic
             return img + ".png";
         }
 
-        internal List<(int, int)> GetLegalMoves(Game game, int row, int col)
+        internal List<(int, int)> GetLegalMoves(Game game, int row, int col) // NEED TO CHECK THAT THE MOVE DOEASN'T LEAVE OUR KING ATTACKED
         {
             List<(int, int)> moves = [];
 
@@ -99,6 +99,18 @@ namespace Chess_Logic
                 }
             }
 
+            if (PieceType == PieceType.King)
+            {
+                if (CanKingCastleDown(game))
+                {
+                    moves.Add((row, col - 2));
+                }
+                if (CanKingCastleUp(game))
+                {
+                    moves.Add((row, col + 2));
+                }
+            }
+
             return moves;
         }
 
@@ -111,6 +123,34 @@ namespace Chess_Logic
                 return row == 1;
             else
                 return row == 6;
+        }
+
+        private bool CanKingCastleUp(Game game) // MAYBE CHANGE BOTH IF DECIDE TO ADD FISCHER RANDOM CHESS MODE
+        {
+            int kingRow = PieceColor == PieceColor.White ? 0 : 7;
+
+            if (!game.HasKingOrUpRookMoved(PieceColor))
+            {
+                if (!game.IsCellOccupied(kingRow, 5) && !game.IsCellOccupied(kingRow, 6)
+                 && !game.IsCellAttacked(PieceColor, kingRow, 5) && !game.IsCellAttacked(PieceColor, kingRow, 6))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private bool CanKingCastleDown(Game game)
+        {
+            int kingRow = PieceColor == PieceColor.White ? 0 : 7;
+
+            if (!game.HasKingOrDownRookMoved(PieceColor))
+            {
+                if (!game.IsCellOccupied(kingRow, 3) && !game.IsCellOccupied(kingRow, 2) && !game.IsCellOccupied(kingRow, 1)
+                 && !game.IsCellAttacked(PieceColor, kingRow, 3) && !game.IsCellAttacked(PieceColor, kingRow, 2) && !game.IsCellAttacked(PieceColor, kingRow, 1))
+                    return true;
+            }
+
+            return false;
         }
 
         private bool CanMoveToCell(Game game, int row, int col, out bool keepSearching)
@@ -150,17 +190,27 @@ namespace Chess_Logic
             return false;
         }
 
-        private static readonly (int, int)[] StraightMoves =
+        internal static readonly (int, int)[] StraightMoves =
         [
             (1, 0), (-1, 0), (0, 1), (0, -1)
         ];
 
-        private static readonly (int, int)[] DiagonalMoves =
+        internal static readonly (int, int)[] DiagonalMoves =
         [
              (1, 1), (1, -1), (-1, 1), (-1, -1)
         ];
 
-        private (int, int)[] GetDirections()
+        internal static readonly (int, int)[] KnightMoves =
+        [
+             (2, 1), (2, -1), (-2, 1), (-2, -1), (1, 2), (1, -2), (-1, 2), (-1, -2)
+        ];
+
+        internal static (int, int)[] AllDirections
+        {
+            get => StraightMoves.Concat(DiagonalMoves).ToArray();
+        }
+
+        internal (int, int)[] GetDirections()
         {
             switch (PieceType)
             {
@@ -172,17 +222,14 @@ namespace Chess_Logic
                         PieceColor == PieceColor.White ? (1, -1) : (-1, -1),
                     ];
                 case PieceType.Knight:
-                    return
-                    [
-                        (2, 1), (2, -1), (-2, 1), (-2, -1), (1, 2), (1, -2), (-1, 2), (-1, -2)
-                    ];
+                    return KnightMoves;
                 case PieceType.Bishop:
                     return DiagonalMoves;
                 case PieceType.Rook:
                     return StraightMoves;
                 case PieceType.Queen:
                 case PieceType.King:
-                    return StraightMoves.Concat(DiagonalMoves).ToArray();
+                    return AllDirections;
 
                 default:
                     throw new ArgumentException();

@@ -1,4 +1,5 @@
 ﻿using System.Data;
+using System.Reflection;
 
 namespace Chess_Logic
 {
@@ -13,11 +14,6 @@ namespace Chess_Logic
             SetUpPawns(1, PieceColor.White);
             SetUpPawns(6, PieceColor.Black);
             SetUpPieces(7, PieceColor.Black);
-        }
-
-        internal static bool IsValidPosition(int row, int col)
-        {
-            return row >= 0 && row < 8 && col >= 0 && col < 8;
         }
 
         public List<(int, int)> GetLegalMoves(int row, int col)
@@ -44,9 +40,13 @@ namespace Chess_Logic
             return Board[row, col] != null;
         }
 
-        internal bool IsCellOccupiedByEnemy(PieceColor pieceColor, int row, int col)
+        public bool IsCellAttacked(PieceColor allyColor, int row, int col)
         {
-            return IsCellOccupied(row, col) && Board[row, col]!.PieceColor != pieceColor;
+            return IsCellAttackedVertically(allyColor, row, col)
+                || IsCellAttackedHorizontally(allyColor, row, col)
+                || IsCellAttackedByKing(allyColor, row, col)
+                || IsCellAttackedByKnight(allyColor, row, col)
+                || IsCellAttackedByPawn(allyColor, row, col);
         }
 
         public void MovePiece(int oldRow, int oldCol, int NewRow, int newCol)
@@ -55,6 +55,26 @@ namespace Chess_Logic
                 throw new ArgumentException("No piece on the specified position.");
 
             Piece piece = Board[oldRow, oldCol]!;
+
+            if (MovedPieces.ContainsKey((piece.PieceColor, piece.PieceType, oldCol)))
+            {
+                MovedPieces[(piece.PieceColor, piece.PieceType, oldCol)] = true;
+            }
+
+            if (piece.PieceType == PieceType.King)
+            {
+                if (oldCol - newCol == -2)
+                {
+                    Board[oldRow, 5] = Board[oldRow, 7];
+                    Board[oldRow, 7] = null;
+                }
+                else if (oldCol - newCol == 2)
+                {
+                    Board[oldRow, 3] = Board[oldRow, 0];
+                    Board[oldRow, 0] = null;
+                }
+            }
+
             Board[oldRow, oldCol] = null;
             Board[NewRow, newCol] = piece;
         }
@@ -82,6 +102,124 @@ namespace Chess_Logic
             else
                 return "green";
         }
+
+        internal bool HasKingOrUpRookMoved(PieceColor pieceColor)
+        {
+            return MovedPieces[(pieceColor, PieceType.King, 4)] || MovedPieces[(pieceColor, PieceType.Rook, 7)];
+        }
+
+        internal bool HasKingOrDownRookMoved(PieceColor pieceColor)
+        {
+            return MovedPieces[(pieceColor, PieceType.King, 4)] || MovedPieces[(pieceColor, PieceType.Rook, 0)];
+        }
+
+        internal static bool IsValidPosition(int row, int col)
+        {
+            return row >= 0 && row < 8 && col >= 0 && col < 8;
+        }
+
+        internal bool IsCellOccupiedByEnemy(PieceColor allyColor, int row, int col)
+        {
+            return IsCellOccupied(row, col) && Board[row, col]!.PieceColor != allyColor;
+        }
+
+        private bool IsCellAttackedVertically(PieceColor allyColor, int row, int col)
+        {
+            foreach ((int moveRow, int moveCol) move in Piece.StraightMoves)
+            {
+                int newRow = row + move.moveRow;
+                int newCol = col + move.moveRow;
+
+                while (IsValidPosition(newRow, newCol))
+                {
+                    if (IsCellOccupied(newRow, newCol))
+                    {
+                        if (IsCellOccupiedByEnemy(allyColor, newRow, newCol)
+                         && Board[newRow, newCol]!.PieceType is PieceType.Queen or PieceType.Rook)
+                            return true;
+
+                        break;
+                    }
+
+                    newRow += move.moveRow;
+                    newCol += move.moveCol;
+                }
+            }
+
+            return false;
+        }
+
+        private bool IsCellAttackedHorizontally(PieceColor allyColor, int row, int col)
+        {
+            foreach ((int moveRow, int moveCol) move in Piece.DiagonalMoves)
+            {
+                int newRow = row + move.moveRow;
+                int newCol = col + move.moveRow;
+
+                while (IsValidPosition(newRow, newCol))
+                {
+                    if (IsCellOccupied(newRow, newCol))
+                    {
+                        if (IsCellOccupiedByEnemy(allyColor, newRow, newCol)
+                         && Board[newRow, newCol]!.PieceType is PieceType.Queen or PieceType.Bishop)
+                            return true;
+
+                        break;
+                    }
+
+                    newRow += move.moveRow;
+                    newCol += move.moveCol;
+                }
+            }
+
+            return false;
+        }
+
+        private bool IsCellAttackedByKnight(PieceColor allyColor, int row, int col)
+        {
+            foreach ((int moveRow, int moveCol) move in Piece.KnightMoves)
+            {
+                int newRow = row + move.moveRow;
+                int newCol = col + move.moveRow;
+                if (IsCellOccupiedByEnemy(allyColor, newRow, newCol) &&
+                    Board[newRow, newCol]!.PieceType == PieceType.Knight)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private bool IsCellAttackedByKing(PieceColor allyColor, int row, int col)
+        {
+            foreach ((int moveRow, int moveCol) move in Piece.AllDirections)
+            {
+                int newRow = row + move.moveRow;
+                int newCol = col + move.moveRow;
+                if (IsCellOccupiedByEnemy(allyColor, newRow, newCol) &&
+                    Board[newRow, newCol]!.PieceType == PieceType.King)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private bool IsCellAttackedByPawn(PieceColor allyColor, int row, int col)
+        {
+            int moveRow = allyColor == PieceColor.White ? row + 1 : row - 1;
+
+            return (IsCellOccupiedByEnemy(allyColor, moveRow, col + 1) && Board[moveRow, col + 1]!.PieceType == PieceType.Pawn)
+                || (IsCellOccupiedByEnemy(allyColor, moveRow, col - 1) && Board[moveRow, col - 1]!.PieceType == PieceType.Pawn);
+        }
+
+        internal Dictionary<(PieceColor, PieceType, int), bool> MovedPieces = new Dictionary<(PieceColor, PieceType, int), bool>()
+        {
+            { (PieceColor.White, PieceType.King, 4), false },
+            { (PieceColor.Black, PieceType.King, 4), false },
+            { (PieceColor.White, PieceType.Rook, 0), false },
+            { (PieceColor.White, PieceType.Rook, 7), false },
+            { (PieceColor.Black, PieceType.Rook, 0), false },
+            { (PieceColor.Black, PieceType.Rook, 7), false },
+        };
 
         private void SetUpPieces(int row, PieceColor pieceColor)
         {
