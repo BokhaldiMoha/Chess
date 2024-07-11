@@ -1,6 +1,4 @@
-﻿using System.Drawing;
-
-namespace Chess_Logic
+﻿namespace Chess_Logic
 {
     public class Piece
     {
@@ -46,6 +44,8 @@ namespace Chess_Logic
 
         internal List<(int, int)> GetLegalMoves(Game game, int row, int col) // NEED TO CHECK THAT THE MOVE DOEASN'T LEAVE OUR KING ATTACKED
         {
+            Game gameClone = game.CloneGame();
+
             List<(int, int)> moves = [];
 
             (int rowMove, int colMove)[] directions = GetDirections();
@@ -60,17 +60,25 @@ namespace Chess_Logic
                     bool keepSearching = true;
                     do
                     {
-                        if (CanMoveToCell(game, moveRow, moveCol, out keepSearching))
+                        if (DoesMoveLeaveKingInCheck(gameClone, row, col, moveRow, moveCol))
+                        {
+                            keepSearching = false;
+                        }
+                        else if (CanMoveToCell(game, moveRow, moveCol, out keepSearching))
                         {
                             moves.Add((moveRow, moveCol));
                             moveRow += direction.rowMove;
                             moveCol += direction.colMove;
                         }
+
                     }
                     while (keepSearching);
                 }
                 else if (PieceType is PieceType.King or PieceType.Knight)
                 {
+                    if (DoesMoveLeaveKingInCheck(gameClone, row, col, moveRow, moveCol))
+                        continue;
+
                     if (CanMoveToCell(game, moveRow, moveCol, out _))
                     {
                         moves.Add((moveRow, moveCol));
@@ -78,22 +86,28 @@ namespace Chess_Logic
                 }
                 else
                 {
+                    if (DoesMoveLeaveKingInCheck(gameClone, row, col, moveRow, moveCol))
+                        continue;
+
                     bool moveIsStraightLine = direction.colMove == 0;
                     if (CanPawnMoveToCell(game, moveRow, moveCol, moveIsStraightLine))
                     {
                         moves.Add((moveRow, moveCol));
 
                         moveRow += direction.rowMove;
-                        if (moveIsStraightLine && IsPawnOnStartingPosition(row) && CanPawnMoveToCell(game, moveRow, moveCol, moveIsStraightLine))
+                        if (moveIsStraightLine
+                         && IsPawnOnStartingPosition(row)
+                         && CanPawnMoveToCell(game, moveRow, moveCol, moveIsStraightLine)
+                         && !DoesMoveLeaveKingInCheck(gameClone, row, col, moveRow, moveCol))
                         {
                             moves.Add((moveRow, moveCol));
                         }
                     }
                     else if (!moveIsStraightLine)
                     {
-                        if (int.IsNegative(direction.colMove) && CanEnPassantDown)
+                        if (int.IsNegative(direction.colMove) && CanEnPassantUp)
                             moves.Add((moveRow, moveCol));
-                        else if (!int.IsNegative(direction.colMove) && CanEnPassantUp)
+                        else if (!int.IsNegative(direction.colMove) && CanEnPassantDown)
                             moves.Add((moveRow, moveCol));
                     }
                 }
@@ -112,6 +126,21 @@ namespace Chess_Logic
             }
 
             return moves;
+        }
+
+        private bool DoesMoveLeaveKingInCheck(Game gameClone, int startingRow, int startingCol, int moveRow, int moveCol)
+        {
+            if (Game.IsValidPosition(moveRow, moveCol))
+            {
+                Piece? oldPiece = gameClone.Board[moveRow, moveCol];
+                gameClone.SimulatePieceMove(startingRow, startingCol, moveRow, moveCol);
+                bool leavesKingInCheck = gameClone.IsKingInCheck(PieceColor);
+                gameClone.SimulatePieceMove(moveRow, moveCol, startingRow, startingCol);
+                gameClone.Board[moveRow, moveCol] = oldPiece;
+                return leavesKingInCheck;
+            }
+
+            return false;
         }
 
         private bool IsPawnOnStartingPosition(int row)
@@ -143,7 +172,7 @@ namespace Chess_Logic
         {
             int kingRow = PieceColor == PieceColor.White ? 0 : 7;
 
-            if (!game.HasKingOrDownRookMoved(PieceColor))
+            if (!game.HasKingOrDownRookMoved(PieceColor) && !game.IsKingInCheck(PieceColor))
             {
                 if (!game.IsCellOccupied(kingRow, 3) && !game.IsCellOccupied(kingRow, 2) && !game.IsCellOccupied(kingRow, 1)
                  && !game.IsCellAttacked(PieceColor, kingRow, 3) && !game.IsCellAttacked(PieceColor, kingRow, 2) && !game.IsCellAttacked(PieceColor, kingRow, 1))

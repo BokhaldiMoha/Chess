@@ -1,12 +1,12 @@
-﻿using System.Data;
-using System.Reflection;
-
-namespace Chess_Logic
+﻿namespace Chess_Logic
 {
     public class Game
     {
         public PieceColor Turn { get; private set; } = PieceColor.White;
-        public Piece?[,] Board { get; private set; } = new Piece?[8, 8];
+        public Piece?[,] Board { get; internal set; } = new Piece?[8, 8];
+
+        public (int row, int col) WhiteKingPosition = (0, 4);
+        public (int row, int col) BlackKingPosition = (7, 4);
 
         public Game()
         {
@@ -32,6 +32,13 @@ namespace Chess_Logic
                 Turn = PieceColor.White;
         }
 
+        public bool IsKingInCheck(PieceColor allyColor)
+        {
+            return allyColor == PieceColor.White
+                ? IsCellAttacked(allyColor, WhiteKingPosition.row, WhiteKingPosition.col)
+                : IsCellAttacked(allyColor, BlackKingPosition.row, BlackKingPosition.col);
+        }
+
         public bool IsCellOccupied(int row, int col)
         {
             if (!IsValidPosition(row, col))
@@ -49,7 +56,7 @@ namespace Chess_Logic
                 || IsCellAttackedByPawn(allyColor, row, col);
         }
 
-        public void MovePiece(int oldRow, int oldCol, int NewRow, int newCol)
+        public void MovePiece(int oldRow, int oldCol, int newRow, int newCol)
         {
             if (!IsCellOccupied(oldRow, oldCol))
                 throw new ArgumentException("No piece on the specified position.");
@@ -73,10 +80,63 @@ namespace Chess_Logic
                     Board[oldRow, 3] = Board[oldRow, 0];
                     Board[oldRow, 0] = null;
                 }
+
+                if (piece.PieceColor == PieceColor.White)
+                    WhiteKingPosition = (newRow, newCol);
+                else
+                    BlackKingPosition = (newRow, newCol);
+            }
+            if (piece.PieceType == PieceType.Pawn && Math.Abs(oldRow - newRow) == 2)
+            {
+                if (IsCellOccupiedByEnemy(piece.PieceColor, newRow, newCol - 1) && Board[newRow, newCol - 1]!.PieceType == PieceType.Pawn)
+                {
+                    Board[newRow, newCol - 1]!.CanEnPassantDown = true;
+                }
+                if (IsCellOccupiedByEnemy(piece.PieceColor, newRow, newCol + 1) && Board[newRow, newCol + 1]!.PieceType == PieceType.Pawn)
+                {
+                    Board[newRow, newCol + 1]!.CanEnPassantUp = true;
+                }
+            }
+            if (piece.PieceType == PieceType.Pawn && (piece.CanEnPassantDown || piece.CanEnPassantUp))
+            {
+                if (Math.Abs(oldCol - newCol) == 1 && Board[newRow, newCol] == null)
+                {
+                    Board[newRow + (piece.PieceColor == PieceColor.White ? -1 : 1), newCol] = null;
+                }
+            }
+
+            piece.CanEnPassantDown = false;
+            piece.CanEnPassantUp = false;
+            Board[oldRow, oldCol] = null;
+            Board[newRow, newCol] = piece;
+        }
+
+        public void SimulatePieceMove(int oldRow, int oldCol, int newRow, int newCol)
+        {
+            if (!IsCellOccupied(oldRow, oldCol))
+                throw new ArgumentException("No piece on the specified position.");
+
+            Piece piece = Board[oldRow, oldCol]!;
+
+            if (piece.PieceType == PieceType.King)
+            {
+                if (piece.PieceColor == PieceColor.White) WhiteKingPosition = (newRow, newCol);
+                else BlackKingPosition = (newRow, newCol);
+
+                if (oldCol - newCol == -2)
+                {
+                    Board[oldRow, 5] = Board[oldRow, 7];
+                    Board[oldRow, 7] = null;
+                }
+                else if (oldCol - newCol == 2)
+                {
+                    Board[oldRow, 3] = Board[oldRow, 0];
+                    Board[oldRow, 0] = null;
+                }
             }
 
             Board[oldRow, oldCol] = null;
-            Board[NewRow, newCol] = piece;
+            Board[newRow, newCol] = piece;
         }
 
         public PieceColor GetPieceColor(int row, int col)
@@ -123,12 +183,32 @@ namespace Chess_Logic
             return IsCellOccupied(row, col) && Board[row, col]!.PieceColor != allyColor;
         }
 
+        internal Game CloneGame()
+        {
+            Game game = new Game();
+            game.Board = (Piece?[,])this.Board.Clone();
+            game.MovedPieces = new Dictionary<(PieceColor, PieceType, int), bool>(this.MovedPieces);
+            game.BlackKingPosition = this.BlackKingPosition;
+            game.WhiteKingPosition = this.WhiteKingPosition;
+            game.Turn = this.Turn;
+            return game;
+        }
+
+        internal Dictionary<(PieceColor, PieceType, int), bool> MovedPieces = new Dictionary<(PieceColor, PieceType, int), bool>()
+        {
+            { (PieceColor.White, PieceType.King, 4), false },
+            { (PieceColor.Black, PieceType.King, 4), false },
+            { (PieceColor.White, PieceType.Rook, 0), false },
+            { (PieceColor.White, PieceType.Rook, 7), false },
+            { (PieceColor.Black, PieceType.Rook, 0), false },
+            { (PieceColor.Black, PieceType.Rook, 7), false },
+        };
         private bool IsCellAttackedVertically(PieceColor allyColor, int row, int col)
         {
             foreach ((int moveRow, int moveCol) move in Piece.StraightMoves)
             {
                 int newRow = row + move.moveRow;
-                int newCol = col + move.moveRow;
+                int newCol = col + move.moveCol;
 
                 while (IsValidPosition(newRow, newCol))
                 {
@@ -154,7 +234,7 @@ namespace Chess_Logic
             foreach ((int moveRow, int moveCol) move in Piece.DiagonalMoves)
             {
                 int newRow = row + move.moveRow;
-                int newCol = col + move.moveRow;
+                int newCol = col + move.moveCol;
 
                 while (IsValidPosition(newRow, newCol))
                 {
@@ -180,7 +260,7 @@ namespace Chess_Logic
             foreach ((int moveRow, int moveCol) move in Piece.KnightMoves)
             {
                 int newRow = row + move.moveRow;
-                int newCol = col + move.moveRow;
+                int newCol = col + move.moveCol;
                 if (IsCellOccupiedByEnemy(allyColor, newRow, newCol) &&
                     Board[newRow, newCol]!.PieceType == PieceType.Knight)
                     return true;
@@ -194,7 +274,7 @@ namespace Chess_Logic
             foreach ((int moveRow, int moveCol) move in Piece.AllDirections)
             {
                 int newRow = row + move.moveRow;
-                int newCol = col + move.moveRow;
+                int newCol = col + move.moveCol;
                 if (IsCellOccupiedByEnemy(allyColor, newRow, newCol) &&
                     Board[newRow, newCol]!.PieceType == PieceType.King)
                     return true;
@@ -210,16 +290,6 @@ namespace Chess_Logic
             return (IsCellOccupiedByEnemy(allyColor, moveRow, col + 1) && Board[moveRow, col + 1]!.PieceType == PieceType.Pawn)
                 || (IsCellOccupiedByEnemy(allyColor, moveRow, col - 1) && Board[moveRow, col - 1]!.PieceType == PieceType.Pawn);
         }
-
-        internal Dictionary<(PieceColor, PieceType, int), bool> MovedPieces = new Dictionary<(PieceColor, PieceType, int), bool>()
-        {
-            { (PieceColor.White, PieceType.King, 4), false },
-            { (PieceColor.Black, PieceType.King, 4), false },
-            { (PieceColor.White, PieceType.Rook, 0), false },
-            { (PieceColor.White, PieceType.Rook, 7), false },
-            { (PieceColor.Black, PieceType.Rook, 0), false },
-            { (PieceColor.Black, PieceType.Rook, 7), false },
-        };
 
         private void SetUpPieces(int row, PieceColor pieceColor)
         {
