@@ -42,7 +42,7 @@
             return img + ".png";
         }
 
-        internal List<(int, int)> GetLegalMoves(Game game, int row, int col) // NEED TO CHECK THAT THE MOVE DOEASN'T LEAVE OUR KING ATTACKED
+        internal List<(int, int)> GetLegalMoves(Game game, int row, int col)
         {
             Game gameClone = game.CloneGame();
 
