@@ -2,6 +2,7 @@
 {
     public enum GameEndReason
     {
+        StillNotOver,
         Checkmate,
         Resignation,
         OnTime,
@@ -9,6 +10,7 @@
         DrawByStalemate,
         DrawBy50MovesRule,
         DrawByInsufficientMaterial,
-        DrawByAgreement
+        DrawByAgreement,
+        OnTimeAgainstInsufficientMaterial
     }
 }

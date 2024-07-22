@@ -2,18 +2,34 @@
 {
     public class Game
     {
-        public PieceColor Turn { get; private set; } = PieceColor.White;
-        public Piece?[,] Board { get; internal set; } = new Piece?[8, 8];
+        public PieceColor Turn { get; private set; }
+        public GameState GameState { get; private set; }
+        public GameEndReason GameEndReason { get; private set; }
+        public Piece?[,] Board { get; internal set; }
+        public (int row, int col) WhiteKingPosition { get; private set; }
+        public (int row, int col) BlackKingPosition { get; private set; }
+        public bool CanPlayerClaim50MovesRule { get; private set; }
 
-        public (int row, int col) WhiteKingPosition = (0, 4);
-        public (int row, int col) BlackKingPosition = (7, 4);
+        private List<string> RepeatablePositions;
 
         public Game()
         {
+            GameState = GameState.Playing;
+            GameEndReason = GameEndReason.StillNotOver;
+
+            Turn = PieceColor.White;
+            Board = new Piece?[8, 8];
+
+            WhiteKingPosition = (0, 4);
+            BlackKingPosition = (7, 4);
+
             SetUpPieces(0, PieceColor.White);
             SetUpPawns(1, PieceColor.White);
             SetUpPawns(6, PieceColor.Black);
             SetUpPieces(7, PieceColor.Black);
+
+            CanPlayerClaim50MovesRule = false;
+            RepeatablePositions = [StringifyBoard()];
         }
 
         public List<(int, int)> GetLegalMoves(int row, int col)
@@ -105,10 +121,55 @@
                 }
             }
 
+            if (piece.PieceType == PieceType.Pawn || Board[newRow, newCol] != null)
+                RepeatablePositions.Clear();
+
             piece.CanEnPassantDown = false;
             piece.CanEnPassantUp = false;
             Board[oldRow, oldCol] = null;
             Board[newRow, newCol] = piece;
+
+            PieceColor enemyColor = piece.PieceColor == PieceColor.White ? PieceColor.Black : PieceColor.White;
+
+            if (!DoesPlayerHaveLegalMoves(enemyColor))
+            {
+                if (IsKingInCheck(enemyColor))
+                {
+                    if (enemyColor == PieceColor.White)
+                        GameState = GameState.BlackWins;
+                    else
+                        GameState = GameState.WhiteWins;
+
+                    GameEndReason = GameEndReason.Checkmate;
+                }
+                else
+                {
+                    GameState = GameState.Draw;
+                    GameEndReason = GameEndReason.DrawByStalemate;
+                }
+            }
+
+            RepeatablePositions.Add(StringifyBoard());
+
+            CanPlayerClaim50MovesRule = RepeatablePositions.Count >= 99;
+
+            if (RepeatablePositions.Count >= 6)
+            {
+                if (RepeatablePositions.GroupBy(x => x).Any(x => x.Count() >= 3))
+                {
+                    GameState = GameState.Draw;
+                    GameEndReason = GameEndReason.DrawByRepetition;
+                }
+            }
+        }
+
+        public void ClaimDrawBy50MovesRule()
+        {
+            if (!CanPlayerClaim50MovesRule)
+                throw new InvalidOperationException("Can't claim 50 moves rule.");
+
+            GameState = GameState.Draw;
+            GameEndReason = GameEndReason.DrawBy50MovesRule;
         }
 
         public void SimulatePieceMove(int oldRow, int oldCol, int newRow, int newCol)
@@ -173,6 +234,28 @@
             return MovedPieces[(pieceColor, PieceType.King, 4)] || MovedPieces[(pieceColor, PieceType.Rook, 0)];
         }
 
+        internal bool DoesPlayerHaveLegalMoves(PieceColor pieceColor)
+        {
+            bool hasLegalMoves = false;
+
+            if (pieceColor == PieceColor.White)
+                hasLegalMoves = Board[WhiteKingPosition.row, WhiteKingPosition.col]!.GetLegalMoves(this, WhiteKingPosition.row, WhiteKingPosition.col).Count != 0;
+            else
+                hasLegalMoves = Board[BlackKingPosition.row, BlackKingPosition.col]!.GetLegalMoves(this, BlackKingPosition.row, BlackKingPosition.col).Count != 0;
+
+            for (int i = 0; i < 8 && !hasLegalMoves; i++)
+            {
+                for (int j = 0; j < 8 && !hasLegalMoves; j++)
+                {
+                    if (IsCellOccupiedByAlly(pieceColor, i, j))
+                        hasLegalMoves = Board[i, j]!.GetLegalMoves(this, i, j).Count != 0;
+
+                }
+            }
+
+            return hasLegalMoves;
+        }
+
         internal static bool IsValidPosition(int row, int col)
         {
             return row >= 0 && row < 8 && col >= 0 && col < 8;
@@ -181,6 +264,11 @@
         internal bool IsCellOccupiedByEnemy(PieceColor allyColor, int row, int col)
         {
             return IsCellOccupied(row, col) && Board[row, col]!.PieceColor != allyColor;
+        }
+
+        internal bool IsCellOccupiedByAlly(PieceColor allyColor, int row, int col)
+        {
+            return IsCellOccupied(row, col) && Board[row, col]!.PieceColor == allyColor;
         }
 
         internal Game CloneGame()
@@ -194,15 +282,6 @@
             return game;
         }
 
-        internal Dictionary<(PieceColor, PieceType, int), bool> MovedPieces = new Dictionary<(PieceColor, PieceType, int), bool>()
-        {
-            { (PieceColor.White, PieceType.King, 4), false },
-            { (PieceColor.Black, PieceType.King, 4), false },
-            { (PieceColor.White, PieceType.Rook, 0), false },
-            { (PieceColor.White, PieceType.Rook, 7), false },
-            { (PieceColor.Black, PieceType.Rook, 0), false },
-            { (PieceColor.Black, PieceType.Rook, 7), false },
-        };
         private bool IsCellAttackedVertically(PieceColor allyColor, int row, int col)
         {
             foreach ((int moveRow, int moveCol) move in Piece.StraightMoves)
@@ -253,6 +332,55 @@
             }
 
             return false;
+        }
+
+        private string StringifyBoard()
+        {
+            string result = "";
+
+            for (int i = 0; i < 8; i++)
+            {
+                for (int j = 0; j < 8; j++)
+                {
+                    if (Board[i, j] != null)
+                    {
+                        char pieceChar = ' ';
+
+                        switch (Board[i, j]!.PieceType)
+                        {
+                            case PieceType.King:
+                                pieceChar = 'k';
+                                break;
+                            case PieceType.Queen:
+                                pieceChar = 'q';
+                                break;
+                            case PieceType.Rook:
+                                pieceChar = 'r';
+                                break;
+                            case PieceType.Bishop:
+                                pieceChar = 'b';
+                                break;
+                            case PieceType.Knight:
+                                pieceChar = 'n';
+                                break;
+                            case PieceType.Pawn:
+                                pieceChar = 'p';
+                                break;
+                        }
+
+                        if (Board[i, j]!.PieceColor == PieceColor.Black)
+                            pieceChar = Char.ToUpper(pieceChar);
+
+                        result += pieceChar;
+                    }
+                    else
+                    {
+                        result += " ";
+                    }
+                }
+            }
+
+            return result;
         }
 
         private bool IsCellAttackedByKnight(PieceColor allyColor, int row, int col)
@@ -310,5 +438,15 @@
                 Board[row, col] = new(PieceType.Pawn, pieceColor);
             }
         }
+
+        internal Dictionary<(PieceColor, PieceType, int), bool> MovedPieces = new()
+        {
+            { (PieceColor.White, PieceType.King, 4), false },
+            { (PieceColor.Black, PieceType.King, 4), false },
+            { (PieceColor.White, PieceType.Rook, 0), false },
+            { (PieceColor.White, PieceType.Rook, 7), false },
+            { (PieceColor.Black, PieceType.Rook, 0), false },
+            { (PieceColor.Black, PieceType.Rook, 7), false },
+        };
     }
 }

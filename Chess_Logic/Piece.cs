@@ -60,17 +60,19 @@
                     bool keepSearching = true;
                     do
                     {
-                        if (DoesMoveLeaveKingInCheck(gameClone, row, col, moveRow, moveCol))
+                        bool leavesKingInCheck = DoesMoveLeaveKingInCheck(gameClone, row, col, moveRow, moveCol);
+
+                        if (Game.IsValidPosition(moveRow, moveCol) || leavesKingInCheck)
                         {
-                            keepSearching = false;
+                            keepSearching = true;
                         }
-                        else if (CanMoveToCell(game, moveRow, moveCol, out keepSearching))
+                        if (CanMoveToCell(game, moveRow, moveCol, out keepSearching) && !leavesKingInCheck)
                         {
                             moves.Add((moveRow, moveCol));
-                            moveRow += direction.rowMove;
-                            moveCol += direction.colMove;
                         }
 
+                        moveRow += direction.rowMove;
+                        moveCol += direction.colMove;
                     }
                     while (keepSearching);
                 }

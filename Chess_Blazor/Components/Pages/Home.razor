@@ -3,44 +3,63 @@
 
 <PageTitle>Home</PageTitle>
 
-<div class="board">
-    @for (int row = 0; row < 8; row++)
-    {
-        for (int col = 0; col < 8; col++)
+<div style="display: flex;">
+    <div class="board">
+        @for (int row = 0; row < 8; row++)
         {
-            int rowIndex = row;
-            int colIndex = col;
-            string cellColor = legalMoves.Contains((rowIndex, colIndex)) ? "red" : game.GetCellColor(rowIndex, colIndex);
+            for (int col = 0; col < 8; col++)
+            {
+                int rowIndex = row;
+                int colIndex = col;
+                string cellColor = legalMoves.Contains((rowIndex, colIndex)) ? "red" : game.GetCellColor(rowIndex, colIndex);
 
-            <div class="cell" style="background-color: @cellColor;"
-                 ondragover="event.preventDefault()"
-                 @ondrop="(args) => OnPieceDrop(rowIndex, colIndex)"
-                 @onclick="() => OnPieceDrop(rowIndex, colIndex)">
-                @if (game.IsCellOccupied(rowIndex, colIndex))
-                {
-                    var pieceColor = game.GetPieceColor(rowIndex, colIndex);
-                    var pieceImg = game.GetPieceImg(rowIndex, colIndex);
-
-                    @if (game.Turn == pieceColor)
+                <div class="cell" style="background-color: @cellColor;"
+                     ondragover="event.preventDefault()"
+                     @ondrop="(args) => OnPieceDrop(rowIndex, colIndex)"
+                     @onclick="() => OnPieceDrop(rowIndex, colIndex)">
+                    @if (game.IsCellOccupied(rowIndex, colIndex))
                     {
-                        <img draggable="true" class="piece draggable-piece" src="~/../pieces/@pieceImg"
-                             @key="@($"piece{rowIndex}{colIndex}")"
-                             @ondragstart="(args) => OnPieceDragStart(rowIndex, colIndex)"
-                             @onclick="() => OnPieceDragStart(rowIndex, colIndex)"
-                        @ondragover:preventDefault />
+                        var pieceColor = game.GetPieceColor(rowIndex, colIndex);
+                        var pieceImg = game.GetPieceImg(rowIndex, colIndex);
+
+                        @if (game.Turn == pieceColor)
+                        {
+                            <img draggable="true" class="piece draggable-piece" src="~/../pieces/@pieceImg"
+                                 @key="@($"piece{rowIndex}{colIndex}")"
+                                 @ondragstart="(args) => OnPieceDragStart(rowIndex, colIndex)"
+                                 @onclick="() => OnPieceDragStart(rowIndex, colIndex)"
+                            @ondragover:preventDefault />
+                        }
+                        else
+                        {
+                            <img ondragstart="event.preventDefault()" class="piece" src="~/../pieces/@pieceImg" />
+                        }
                     }
                     else
                     {
-                        <img ondragstart="event.preventDefault()" class="piece" src="~/../pieces/@pieceImg" />
+                        <img draggable="false" ondragstart="event.preventDefault()" class="piece" src="~/../transparent.png" />
                     }
-                }
-                else
-                {
-                    <img draggable="false" ondragstart="event.preventDefault()" class="piece" src="~/../transparent.png" />
-                }
-            </div>
+                </div>
+            }
         }
-    }
+    </div>
+    <div>
+        <h3>@(Enum.GetName(typeof(GameState), game.GameState))</h3>
+        <h3>@(Enum.GetName(typeof(GameEndReason), game.GameEndReason))</h3>
+        <br />
+        <h4>To do:</h4>
+        <ul style="margin-left: 27px;">
+            <li>Add events when check, can claim 50 moves rule and gamestate changed</li>
+            <li>Pawns promotion</li>
+            <li>Draw by insufficient material</li>
+            <li>Add time limit?</li>
+            <li>Draw by insufficient material vs no time</li>
+            <li>Lose on time</li>
+            <li>Add resignation?</li>
+            <li>Optimize everything</li>
+        </ul>
+        <button disabled="@(!game.CanPlayerClaim50MovesRule)" @onclick="game.ClaimDrawBy50MovesRule">Claim 50 moves rule</button>
+    </div>
 </div>
 
 <style>
@@ -95,7 +114,7 @@
     {
         Console.WriteLine($"OnPieceDrop -> row: {row} - col: {col}");
 
-        if (pieceRowDragging == row && pieceColDragging == col || !legalMoves.Contains((row, col)))
+        if ((pieceRowDragging == row && pieceColDragging == col) || !legalMoves.Contains((row, col)))
             return;
 
         game.MovePiece(pieceRowDragging, pieceColDragging, row, col);
