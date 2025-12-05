@@ -10,6 +10,10 @@
         public (int row, int col) BlackKingPosition { get; private set; }
         public bool CanPlayerClaim50MovesRule { get; private set; }
 
+        public event Action? GameStateChanged;
+        public event Action? CanClaim50MovesRuleChanged;
+        public event Action<PieceColor>? KingInCheckStateChanged;
+
         private List<string> RepeatablePositions;
 
         public Game()
@@ -124,6 +128,10 @@
             if (piece.PieceType == PieceType.Pawn || Board[newRow, newCol] != null)
                 RepeatablePositions.Clear();
 
+            if (piece.PieceType == PieceType.Pawn)
+                if ((piece.PieceColor == PieceColor.White && newRow == 7) || (piece.PieceColor == PieceColor.Black && newRow == 0))
+                    piece.PieceType = PieceType.Queen;
+
             piece.CanEnPassantDown = false;
             piece.CanEnPassantUp = false;
             Board[oldRow, oldCol] = null;
@@ -147,11 +155,31 @@
                     GameState = GameState.Draw;
                     GameEndReason = GameEndReason.DrawByStalemate;
                 }
+
+                GameStateChanged?.Invoke();
+                return;
+            }
+            else if (IsKingInCheck(enemyColor))
+            {
+                KingInCheckStateChanged?.Invoke(enemyColor);
             }
 
             RepeatablePositions.Add(StringifyBoard());
 
-            CanPlayerClaim50MovesRule = RepeatablePositions.Count >= 99;
+            if (!IsThereSuficientMaterial())
+            {
+                GameState = GameState.Draw;
+                GameEndReason = GameEndReason.DrawByInsufficientMaterial;
+
+                GameStateChanged?.Invoke();
+                return;
+            }
+
+            if (CanPlayerClaim50MovesRule != RepeatablePositions.Count >= 99)
+            {
+                CanPlayerClaim50MovesRule = RepeatablePositions.Count >= 99;
+                CanClaim50MovesRuleChanged?.Invoke();
+            }
 
             if (RepeatablePositions.Count >= 6)
             {
@@ -159,8 +187,13 @@
                 {
                     GameState = GameState.Draw;
                     GameEndReason = GameEndReason.DrawByRepetition;
+
+                    GameStateChanged?.Invoke();
+                    return;
                 }
             }
+
+            ChangeTurn();
         }
 
         public void ClaimDrawBy50MovesRule()
@@ -170,6 +203,7 @@
 
             GameState = GameState.Draw;
             GameEndReason = GameEndReason.DrawBy50MovesRule;
+            GameStateChanged?.Invoke();
         }
 
         public void SimulatePieceMove(int oldRow, int oldCol, int newRow, int newCol)
@@ -206,14 +240,6 @@
                 throw new ArgumentException("No piece on the specified position.");
 
             return Board[row, col]!.PieceColor;
-        }
-
-        public string GetPieceImg(int row, int col)
-        {
-            if (!IsCellOccupied(row, col))
-                throw new ArgumentException("No piece on the specified position.");
-
-            return Board[row, col]!.GetImg();
         }
 
         public string GetCellColor(int row, int col)
@@ -417,6 +443,12 @@
 
             return (IsCellOccupiedByEnemy(allyColor, moveRow, col + 1) && Board[moveRow, col + 1]!.PieceType == PieceType.Pawn)
                 || (IsCellOccupiedByEnemy(allyColor, moveRow, col - 1) && Board[moveRow, col - 1]!.PieceType == PieceType.Pawn);
+        }
+
+        private bool IsThereSuficientMaterial()
+        {
+            string sBoard = StringifyBoard();
+            return sBoard.Contains('p', StringComparison.InvariantCultureIgnoreCase) || sBoard.GroupBy(p => p).Any(p => char.ToLower(p.Key) != 'p' && p.Count() > 1);
         }
 
         private void SetUpPieces(int row, PieceColor pieceColor)

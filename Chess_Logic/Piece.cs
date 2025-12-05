@@ -2,8 +2,8 @@
 {
     public class Piece
     {
-        internal readonly PieceType PieceType;
-        internal readonly PieceColor PieceColor;
+        public PieceType PieceType { get; internal set; }
+        public readonly PieceColor PieceColor;
         internal bool CanEnPassantDown = false;
         internal bool CanEnPassantUp = false;
 
@@ -11,35 +11,6 @@
         {
             this.PieceType = pieceType;
             this.PieceColor = pieceColor;
-        }
-
-        internal string GetImg()
-        {
-            string img = PieceColor == PieceColor.White ? "w" : "b";
-
-            switch (PieceType)
-            {
-                case PieceType.King:
-                    img += "k";
-                    break;
-                case PieceType.Queen:
-                    img += "q";
-                    break;
-                case PieceType.Rook:
-                    img += "r";
-                    break;
-                case PieceType.Bishop:
-                    img += "b";
-                    break;
-                case PieceType.Knight:
-                    img += "n";
-                    break;
-                case PieceType.Pawn:
-                    img += "p";
-                    break;
-            }
-
-            return img + ".png";
         }
 
         internal List<(int, int)> GetLegalMoves(Game game, int row, int col)
@@ -88,13 +59,11 @@
                 }
                 else
                 {
-                    if (DoesMoveLeaveKingInCheck(gameClone, row, col, moveRow, moveCol))
-                        continue;
-
                     bool moveIsStraightLine = direction.colMove == 0;
                     if (CanPawnMoveToCell(game, moveRow, moveCol, moveIsStraightLine))
                     {
-                        moves.Add((moveRow, moveCol));
+                        if (!DoesMoveLeaveKingInCheck(gameClone, row, col, moveRow, moveCol))
+                            moves.Add((moveRow, moveCol));
 
                         moveRow += direction.rowMove;
                         if (moveIsStraightLine
@@ -105,7 +74,7 @@
                             moves.Add((moveRow, moveCol));
                         }
                     }
-                    else if (!moveIsStraightLine)
+                    else if (!moveIsStraightLine && !DoesMoveLeaveKingInCheck(gameClone, row, col, moveRow, moveCol))
                     {
                         if (int.IsNegative(direction.colMove) && CanEnPassantUp)
                             moves.Add((moveRow, moveCol));
@@ -117,11 +86,11 @@
 
             if (PieceType == PieceType.King)
             {
-                if (CanKingCastleDown(game))
+                if (CanKingLongCastle(game))
                 {
                     moves.Add((row, col - 2));
                 }
-                if (CanKingCastleUp(game))
+                if (CanKingShortCastle(game))
                 {
                     moves.Add((row, col + 2));
                 }
@@ -156,7 +125,7 @@
                 return row == 6;
         }
 
-        private bool CanKingCastleUp(Game game) // MAYBE CHANGE BOTH IF DECIDE TO ADD FISCHER RANDOM CHESS MODE
+        private bool CanKingShortCastle(Game game) // MAYBE CHANGE BOTH IF DECIDE TO ADD FISCHER RANDOM CHESS MODE
         {
             int kingRow = PieceColor == PieceColor.White ? 0 : 7;
 
@@ -170,7 +139,7 @@
             return false;
         }
 
-        private bool CanKingCastleDown(Game game)
+        private bool CanKingLongCastle(Game game)
         {
             int kingRow = PieceColor == PieceColor.White ? 0 : 7;
 
